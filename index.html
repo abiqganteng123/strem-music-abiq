@@ -82,6 +82,53 @@
             box-shadow: 0 0 0 2px var(--primary-color);
         }
 
+        .search-history {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background-color: var(--background-lighter);
+            border-radius: 0 0 10px 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+            z-index: 1000;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .search-history.show {
+            display: block;
+        }
+
+        .search-history-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .search-history-item:hover {
+            background-color: var(--primary-dark);
+        }
+
+        .search-history-item .material-icons {
+            margin-right: 10px;
+            font-size: 18px;
+            vertical-align: middle;
+        }
+
+        .clear-history {
+            padding: 10px;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-top: 1px solid var(--background-light);
+        }
+
+        .clear-history:hover {
+            color: var(--text-primary);
+        }
+
         .user-avatar {
             width: 32px;
             height: 32px;
@@ -92,6 +139,88 @@
 
         .user-avatar:hover {
             transform: scale(1.1);
+        }
+
+        /* Alert Dialog */
+        .alert-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .alert-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .alert-dialog {
+            background-color: var(--background-light);
+            border-radius: 10px;
+            width: 90%;
+            max-width: 400px;
+            padding: 25px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            transform: translateY(-50px);
+            transition: transform 0.3s ease, opacity 0.3s ease;
+            opacity: 0;
+        }
+
+        .alert-overlay.show .alert-dialog {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .alert-title {
+            font-size: 20px;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+        }
+
+        .alert-title .material-icons {
+            margin-right: 10px;
+        }
+
+        .alert-message {
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .alert-checkbox {
+            margin: 15px 0;
+            display: flex;
+            align-items: center;
+        }
+
+        .alert-checkbox input {
+            margin-right: 10px;
+        }
+
+        .alert-button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.3s;
+            width: 100%;
+        }
+
+        .alert-button:hover {
+            background-color: var(--primary-dark);
         }
 
         /* Main Content */
@@ -524,6 +653,24 @@
     </style>
 </head>
 <body>
+    <!-- Alert Dialog -->
+    <div class="alert-overlay" id="alert-overlay">
+        <div class="alert-dialog">
+            <div class="alert-title">
+                <span class="material-icons">info</span>
+                <span>Pemberitahuan Penting</span>
+            </div>
+            <div class="alert-message">
+                Web ini masih dalam tahap pengembangan. Beberapa fitur mungkin belum berfungsi dengan sempurna. Kami akan terus melakukan perbaikan dan penambahan fitur.
+            </div>
+            <div class="alert-checkbox">
+                <input type="checkbox" id="dont-show-again">
+                <label for="dont-show-again">Jangan tampilkan lagi</label>
+            </div>
+            <button class="alert-button" id="alert-ok-button">Mengerti</button>
+        </div>
+    </div>
+
     <div class="app-container">
         <!-- Header -->
         <header class="header">
@@ -533,6 +680,12 @@
             </div>
             <div class="search-container">
                 <input type="text" class="search-input" placeholder="Search for songs or artists" id="search-input">
+                <div class="search-history" id="search-history">
+                    <!-- Search history items will be added here -->
+                    <div class="clear-history" id="clear-history">
+                        <span class="material-icons">delete</span> Clear History
+                    </div>
+                </div>
             </div>
             <div class="user-avatar"></div>
         </header>
@@ -632,15 +785,17 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // API configuration
-            const API_KEY = 'b12950bd2dmsh08b04fe17d08a2ep1e8d0djsnf03fab6e09c4';
-            const API_HOST = 'youtube138.p.rapidapi.com';
+            // YouTube API v3 Key
+            const API_KEY = 'AIzaSyArjDxw1aswD5efWgRAWmvYxBxwz7_MjF8';
             
             // DOM elements
             const contentArea = document.getElementById('content-area');
             const musicGrid = document.getElementById('music-grid');
             const recentGrid = document.getElementById('recent-grid');
             const searchInput = document.getElementById('search-input');
+            const searchContainer = document.querySelector('.search-container');
+            const searchHistory = document.getElementById('search-history');
+            const clearHistory = document.getElementById('clear-history');
             const player = document.getElementById('player');
             const playButton = document.getElementById('play-button');
             const playIcon = document.getElementById('play-icon');
@@ -660,95 +815,190 @@
             const notificationClose = document.getElementById('notification-close');
             const youtubeContainer = document.getElementById('youtube-container');
             
-            // Audio element
+            // Alert dialog elements
+            const alertOverlay = document.getElementById('alert-overlay');
+            const dontShowAgain = document.getElementById('dont-show-again');
+            const alertOkButton = document.getElementById('alert-ok-button');
+            
+            // App state
             let isPlaying = false;
             let currentTrackIndex = 0;
             let tracks = [];
             let recentTracks = [];
             let youtubePlayer = null;
-            let serviceWorker = null;
+            let searchHistoryItems = JSON.parse(localStorage.getItem('searchHistory')) || [];
             
             // Initialize the app
             loadPopularMusic();
-            registerServiceWorker();
+            updateSearchHistoryDisplay();
             
-            // Register Service Worker for background playback
-            function registerServiceWorker() {
-                if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.register('sw.js').then(registration => {
-                        serviceWorker = registration.active || registration.installing || registration.waiting;
-                    }).catch(error => {
-                        console.error('Service Worker registration failed:', error);
-                    });
-                }
-            }
-            
-            // Show media notification
-            function showMediaNotification(title, artist, cover) {
-                notificationTitle.textContent = title;
-                notificationArtist.textContent = artist || 'Unknown Artist';
-                notificationCover.src = cover || 'https://via.placeholder.com/300x300?text=No+Cover';
-                
-                mediaNotification.classList.add('show');
-                
-                // Auto-hide after 3 seconds
+            // Show alert dialog if not dismissed
+            if (!localStorage.getItem('hideAlert')) {
                 setTimeout(() => {
-                    mediaNotification.classList.remove('show');
-                }, 3000);
+                    alertOverlay.classList.add('show');
+                }, 1000);
+            }
+
+            alertOkButton.addEventListener('click', function() {
+                if (dontShowAgain.checked) {
+                    localStorage.setItem('hideAlert', 'true');
+                }
+                alertOverlay.classList.remove('show');
+            });
+
+            // Search history functionality
+            function updateSearchHistoryDisplay() {
+                const historyContainer = searchHistory;
+                // Clear existing items except the clear button
+                while (historyContainer.firstChild !== clearHistory) {
+                    historyContainer.removeChild(historyContainer.firstChild);
+                }
+                
+                // Add history items in reverse order (newest first)
+                searchHistoryItems.slice().reverse().forEach(item => {
+                    const historyItem = document.createElement('div');
+                    historyItem.className = 'search-history-item';
+                    historyItem.innerHTML = `
+                        <span class="material-icons">history</span>
+                        ${item}
+                    `;
+                    historyItem.addEventListener('click', function() {
+                        searchInput.value = item;
+                        searchMusic(item);
+                        searchHistory.classList.remove('show');
+                    });
+                    historyContainer.insertBefore(historyItem, clearHistory);
+                });
             }
             
-            // Close notification
-            notificationClose.addEventListener('click', () => {
-                mediaNotification.classList.remove('show');
+            function addToSearchHistory(query) {
+                if (!query.trim()) return;
+                
+                // Remove if already exists
+                searchHistoryItems = searchHistoryItems.filter(item => item.toLowerCase() !== query.toLowerCase());
+                
+                // Add to beginning
+                searchHistoryItems.unshift(query);
+                
+                // Limit to 10 items
+                if (searchHistoryItems.length > 10) {
+                    searchHistoryItems.pop();
+                }
+                
+                // Save to localStorage
+                localStorage.setItem('searchHistory', JSON.stringify(searchHistoryItems));
+                updateSearchHistoryDisplay();
+            }
+            
+            // Show history when input is focused
+            searchInput.addEventListener('focus', function() {
+                if (searchHistoryItems.length > 0) {
+                    searchHistory.classList.add('show');
+                }
             });
             
-            // Load popular music
+            // Hide history when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!searchContainer.contains(e.target) && e.target !== searchInput) {
+                    searchHistory.classList.remove('show');
+                }
+            });
+            
+            // Clear history
+            clearHistory.addEventListener('click', function(e) {
+                e.stopPropagation();
+                searchHistoryItems = [];
+                localStorage.removeItem('searchHistory');
+                updateSearchHistoryDisplay();
+                searchHistory.classList.remove('show');
+            });
+            
+            // Load popular music using YouTube API v3
             async function loadPopularMusic() {
                 try {
-                    // Search for popular music genres
-                    const [popMusic, lofiMusic] = await Promise.all([
-                        searchMusic('pop music'),
-                        searchMusic('lofi beats')
-                    ]);
+                    // Search for popular music videos (category 10 is Music)
+                    const response = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&chart=mostPopular&regionCode=US&videoCategoryId=10&maxResults=12&key=${API_KEY}`);
+                    const data = await response.json();
                     
-                    tracks = [...popMusic, ...lofiMusic].slice(0, 12);
-                    recentTracks = [...tracks].sort(() => 0.5 - Math.random()).slice(0, 6);
-                    
-                    renderMusicGrid(tracks, musicGrid);
-                    renderMusicGrid(recentTracks, recentGrid);
+                    if (data.items && data.items.length > 0) {
+                        tracks = data.items.map(item => ({
+                            id: item.id,
+                            title: item.snippet.title,
+                            artist: item.snippet.channelTitle,
+                            cover: item.snippet.thumbnails.medium.url,
+                            duration: formatDuration(item.contentDetails.duration)
+                        }));
+                        
+                        // Create some recent tracks by shuffling
+                        recentTracks = [...tracks].sort(() => 0.5 - Math.random()).slice(0, 6);
+                        
+                        renderMusicGrid(tracks, musicGrid);
+                        renderMusicGrid(recentTracks, recentGrid);
+                    } else {
+                        showMediaNotification("No popular music found", "Try again later", "");
+                    }
                 } catch (error) {
                     console.error('Error loading music:', error);
                     showMediaNotification("Error", "Failed to load music", "");
                 }
             }
             
-            // Search music using YouTube API
+            // Search music using YouTube API v3
             async function searchMusic(query) {
-                const url = `https://${API_HOST}/search/?q=${encodeURIComponent(query)}&hl=en&gl=US`;
-                
-                const response = await fetch(url, {
-                    method: 'GET',
-                    headers: {
-                        'X-RapidAPI-Key': API_KEY,
-                        'X-RapidAPI-Host': API_HOST
+                try {
+                    addToSearchHistory(query);
+                    
+                    // First search for videos matching the query in Music category
+                    const searchResponse = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=12&q=${encodeURIComponent(query)}&type=video&videoCategoryId=10&key=${API_KEY}`);
+                    const searchData = await searchResponse.json();
+                    
+                    if (!searchData.items || searchData.items.length === 0) {
+                        showMediaNotification("No results found", "Try different keywords", "");
+                        return [];
                     }
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Failed to search music');
-                }
-                
-                const data = await response.json();
-                return data.contents
-                    .map(item => item.video)
-                    .filter(video => video && video.title && video.videoId)
-                    .map(video => ({
-                        id: video.videoId,
-                        title: video.title,
-                        artist: video.author?.title || 'Unknown Artist',
-                        cover: video.thumbnails[0]?.url || '',
-                        duration: video.lengthSeconds
+                    
+                    // Get video details for each search result
+                    const videoIds = searchData.items.map(item => item.id.videoId).join(',');
+                    const videosResponse = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${videoIds}&key=${API_KEY}`);
+                    const videosData = await videosResponse.json();
+                    
+                    const results = videosData.items.map(item => ({
+                        id: item.id,
+                        title: item.snippet.title,
+                        artist: item.snippet.channelTitle,
+                        cover: item.snippet.thumbnails.medium.url,
+                        duration: formatDuration(item.contentDetails.duration)
                     }));
+                    
+                    if (results && results.length > 0) {
+                        tracks = results;
+                        renderMusicGrid(tracks, musicGrid);
+                        // Clear recent grid when searching
+                        recentGrid.innerHTML = '';
+                        showMediaNotification(`Found ${results.length} songs`, "Search results", "");
+                        return results;
+                    } else {
+                        showMediaNotification("No results found", "Try different keywords", "");
+                        return [];
+                    }
+                } catch (error) {
+                    console.error('Error searching music:', error);
+                    showMediaNotification("Search failed", "Please try again", "");
+                    return [];
+                }
+            }
+            
+            // Format duration (PT1H23M45S -> 1:23:45)
+            function formatDuration(duration) {
+                const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
+                const hours = (match[1] ? parseInt(match[1]) : 0);
+                const minutes = (match[2] ? parseInt(match[2]) : 0);
+                const seconds = (match[3] ? parseInt(match[3]) : 0);
+                
+                if (hours > 0) {
+                    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                }
+                return `${minutes}:${seconds.toString().padStart(2, '0')}`;
             }
             
             // Render music grid
@@ -791,20 +1041,7 @@
                 // Show media notification
                 showMediaNotification(track.title, track.artist, track.cover);
                 
-                // Try to play with YouTube iframe API
-                playWithYouTubeIframe(track.id);
-                
-                // Add to recent tracks if not already there
-                if (!recentTracks.some(t => t.id === track.id)) {
-                    recentTracks.unshift(track);
-                    if (recentTracks.length > 6) recentTracks.pop();
-                    renderMusicGrid(recentTracks, recentGrid);
-                }
-            }
-            
-            // Play with YouTube iframe API
-            function playWithYouTubeIframe(videoId) {
-                // Load YouTube API script if not already loaded
+                // Initialize YouTube player if not already done
                 if (!window.YT) {
                     const tag = document.createElement('script');
                     tag.src = "https://www.youtube.com/iframe_api";
@@ -812,10 +1049,17 @@
                     firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
                     
                     window.onYouTubeIframeAPIReady = function() {
-                        createYouTubePlayer(videoId);
+                        createYouTubePlayer(track.id);
                     };
                 } else {
-                    createYouTubePlayer(videoId);
+                    createYouTubePlayer(track.id);
+                }
+                
+                // Add to recent tracks if not already there
+                if (!recentTracks.some(t => t.id === track.id)) {
+                    recentTracks.unshift(track);
+                    if (recentTracks.length > 6) recentTracks.pop();
+                    renderMusicGrid(recentTracks, recentGrid);
                 }
             }
             
@@ -830,11 +1074,11 @@
                         width: '0',
                         videoId: videoId,
                         playerVars: {
-                            autoplay: 1,
-                            controls: 0,
-                            disablekb: 1,
-                            fs: 0,
-                            rel: 0
+                            'autoplay': 1,
+                            'controls': 0,
+                            'disablekb': 1,
+                            'fs': 0,
+                            'rel': 0
                         },
                         events: {
                             'onReady': onPlayerReady,
@@ -931,6 +1175,33 @@
                 }
             }
             
+            // Show media notification
+            function showMediaNotification(title, artist, cover) {
+                notificationTitle.textContent = title;
+                notificationArtist.textContent = artist || 'Unknown Artist';
+                notificationCover.src = cover || 'https://via.placeholder.com/300x300?text=No+Cover';
+                
+                mediaNotification.classList.add('show');
+                
+                // Auto-hide after 3 seconds
+                setTimeout(() => {
+                    mediaNotification.classList.remove('show');
+                }, 3000);
+            }
+            
+            // Close notification
+            notificationClose.addEventListener('click', () => {
+                mediaNotification.classList.remove('show');
+            });
+            
+            // Format time (seconds to MM:SS)
+            function formatTime(seconds) {
+                if (isNaN(seconds)) return '0:00';
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+            }
+            
             // Toggle play/pause
             function togglePlayPause() {
                 if (youtubePlayer) {
@@ -950,14 +1221,6 @@
             // Play previous track
             function playPrev() {
                 playTrack((currentTrackIndex - 1 + tracks.length) % tracks.length);
-            }
-            
-            // Format time (seconds to MM:SS)
-            function formatTime(seconds) {
-                if (isNaN(seconds)) return '0:00';
-                const mins = Math.floor(seconds / 60);
-                const secs = Math.floor(seconds % 60);
-                return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
             }
             
             // Seek in audio
@@ -988,15 +1251,9 @@
                         if (results && results.length > 0) {
                             tracks = results;
                             renderMusicGrid(tracks, musicGrid);
-                            // Clear recent grid when searching
-                            recentGrid.innerHTML = '';
-                            showMediaNotification(`Found ${results.length} songs`, "Search results", "");
-                        } else {
-                            showMediaNotification("No results found", "Try different keywords", "");
                         }
                     } catch (error) {
                         console.error('Error searching:', error);
-                        showMediaNotification("Search failed", "Please try again", "");
                     }
                 }
             });
